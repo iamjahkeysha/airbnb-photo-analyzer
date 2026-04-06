@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Airbnb Photo Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f7f7;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+
+    h1 { font-size: 1.8rem; margin-bottom: 8px; }
+    p.subtitle { color: #666; margin-bottom: 32px; }
+
+    .upload-box {
+      background: #fff;
+      border: 2px dashed #ccc;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      width: 100%;
+      max-width: 520px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .upload-box:hover, .upload-box.drag-over { border-color: #ff5a5f; }
+    .upload-box input { display: none; }
+    .upload-box label { cursor: pointer; font-size: 1rem; color: #444; }
+    .upload-box .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    #preview-wrap { margin-top: 24px; display: none; }
+    #preview-wrap img {
+      max-width: 100%;
+      max-width: 520px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    #analyze-btn {
+      margin-top: 16px;
+      padding: 12px 36px;
+      background: #ff5a5f;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      display: none;
+    }
+    #analyze-btn:hover { background: #e0484d; }
+    #analyze-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    #results {
+      margin-top: 32px;
+      width: 100%;
+      max-width: 520px;
+      display: none;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    }
+    .card h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 8px; }
+    .card .value { font-size: 1.4rem; font-weight: 600; }
+    .card .rating {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 0.8rem;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+      vertical-align: middle;
+    }
+    .rating.good  { background: #d4f5e2; color: #1a7a45; }
+    .rating.high  { background: #fff0c2; color: #7a5a00; }
+    .rating.low   { background: #ffe0e0; color: #a00; }
+    .rating.warm  { background: #ffe8cc; color: #b05000; }
+    .rating.cool  { background: #ddeeff; color: #004080; }
+    .rating.neutral { background: #eee; color: #555; }
+    .rating.clean { background: #d4f5e2; color: #1a7a45; }
+    .rating.moderate { background: #fff0c2; color: #7a5a00; }
+    .rating.cluttered { background: #ffe0e0; color: #a00; }
+    .rating.poor { background: #ffe0e0; color: #a00; }
+
+    .thumb-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .thumb-row .card { flex: 1; min-width: 120px; }
+
+    #error-msg { color: #a00; margin-top: 12px; font-size: 0.9rem; }
+    #spinner { display: none; margin-top: 12px; font-size: 0.9rem; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Airbnb Photo Analyzer</h1>
+  <p class="subtitle">Upload a listing photo to score its quality factors.</p>
+
+  <div class="upload-box" id="drop-zone">
+    <div class="icon">🏠</div>
+    <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.webp" />
+    <label for="file-input">Drop a photo here or <strong>click to browse</strong></label>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview" src="" alt="Preview" />
+  </div>
+
+  <button id="analyze-btn">Analyze Photo</button>
+  <div id="spinner">Analyzing...</div>
+  <div id="error-msg"></div>
+
+  <div id="results">
+    <div class="card">
+      <h3>Brightness</h3>
+      <span class="value" id="brightness-score"></span>
+      <span class="rating" id="brightness-rating"></span>
+    </div>
+    <div class="card">
+      <h3>Contrast</h3>
+      <span class="value" id="contrast-score"></span>
+      <span class="rating" id="contrast-rating"></span>
+    </div>
+    <div class="card">
+      <h3>Sharpness</h3>
+      <span class="value" id="sharpness-score"></span>
+      <span class="rating" id="sharpness-rating"></span>
+    </div>
+    <div class="card">
+      <h3>Color Warmth</h3>
+      <span class="value" id="warmth-score"></span>
+      <span class="rating" id="warmth-rating"></span>
+    </div>
+    <div class="card">
+      <h3>Color Clutter</h3>
+      <span class="value" id="clutter-score"></span>
+      <span class="rating" id="clutter-rating"></span>
+    </div>
+    <div class="card">
+      <h3>Rule of Thirds</h3>
+      <span class="value" id="thirds-score"></span>
+      <span class="rating" id="thirds-rating"></span>
+    </div>
+
+    <h3 style="margin: 20px 0 10px; font-size: 0.85rem; color: #888; text-transform: uppercase; letter-spacing: 0.08em;">Thumbnail Preview (400×300)</h3>
+    <div class="thumb-row">
+      <div class="card">
+        <h3>Brightness</h3>
+        <span class="value" id="t-brightness-score"></span>
+        <span class="rating" id="t-brightness-rating"></span>
+      </div>
+      <div class="card">
+        <h3>Contrast</h3>
+        <span class="value" id="t-contrast-score"></span>
+        <span class="rating" id="t-contrast-rating"></span>
+      </div>
+      <div class="card">
+        <h3>Sharpness</h3>
+        <span class="value" id="t-sharpness-score"></span>
+        <span class="rating" id="t-sharpness-rating"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("file-input");
+    const dropZone = document.getElementById("drop-zone");
+    const previewWrap = document.getElementById("preview-wrap");
+    const preview = document.getElementById("preview");
+    const analyzeBtn = document.getElementById("analyze-btn");
+    const spinner = document.getElementById("spinner");
+    const errorMsg = document.getElementById("error-msg");
+    const results = document.getElementById("results");
+
+    let selectedFile = null;
+
+    function showPreview(file) {
+      selectedFile = file;
+      preview.src = URL.createObjectURL(file);
+      previewWrap.style.display = "block";
+      analyzeBtn.style.display = "inline-block";
+      results.style.display = "none";
+      errorMsg.textContent = "";
+    }
+
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) showPreview(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) showPreview(e.dataTransfer.files[0]);
+    });
+
+    analyzeBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+      analyzeBtn.disabled = true;
+      spinner.style.display = "block";
+      errorMsg.textContent = "";
+      results.style.display = "none";
+
+      const form = new FormData();
+      form.append("photo", selectedFile);
+
+      try {
+        const res = await fetch("/analyze", { method: "POST", body: form });
+        const data = await res.json();
+        if (data.error) { errorMsg.textContent = data.error; return; }
+        renderResults(data);
+      } catch (e) {
+        errorMsg.textContent = "Something went wrong. Please try again.";
+      } finally {
+        analyzeBtn.disabled = false;
+        spinner.style.display = "none";
+      }
+    });
+
+    function set(id, value) { document.getElementById(id).textContent = value; }
+    function setRating(id, rating) {
+      const el = document.getElementById(id);
+      el.textContent = rating;
+      el.className = `rating ${rating}`;
+    }
+
+    function renderResults(d) {
+      set("brightness-score", d.brightness.score);
+      setRating("brightness-rating", d.brightness.rating);
+      set("contrast-score", d.contrast.score);
+      setRating("contrast-rating", d.contrast.rating);
+      set("sharpness-score", d.sharpness.score);
+      setRating("sharpness-rating", d.sharpness.rating);
+      set("warmth-score", d.warmth.score);
+      setRating("warmth-rating", d.warmth.rating);
+      set("clutter-score", d.color_clutter.unique_colors + " colors");
+      setRating("clutter-rating", d.color_clutter.rating);
+      set("thirds-score", d.thirds_score.score);
+      setRating("thirds-rating", d.thirds_score.rating);
+      set("t-brightness-score", d.thumbnail.brightness.score);
+      setRating("t-brightness-rating", d.thumbnail.brightness.rating);
+      set("t-contrast-score", d.thumbnail.contrast.score);
+      setRating("t-contrast-rating", d.thumbnail.contrast.rating);
+      set("t-sharpness-score", d.thumbnail.sharpness.score);
+      setRating("t-sharpness-rating", d.thumbnail.sharpness.rating);
+      results.style.display = "block";
+    }
+  </script>
+</body>
+</html>
